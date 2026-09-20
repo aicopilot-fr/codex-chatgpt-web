@@ -38,11 +38,12 @@ function writeJson(response, status, body) {
 }
 
 class BrowserControlServer {
-  constructor({ logger, getBrowserHost, getPreferences, resolveProxy }) {
+  constructor({ logger, getBrowserHost, getPreferences, resolveProxy, stopRuntime }) {
     this.logger = logger;
     this.getBrowserHost = getBrowserHost;
     this.getPreferences = getPreferences;
     this.resolveProxy = resolveProxy;
+    this.stopRuntime = stopRuntime;
     this.token = randomBytes(32).toString("base64url");
     this.port = 0;
     this.server = createServer((request, response) => {
@@ -92,6 +93,16 @@ class BrowserControlServer {
   async handle(request, response) {
     if (!secureTokenMatches(this.token, request.headers.authorization)) {
       writeJson(response, 401, { error: "unauthorized" });
+      return;
+    }
+    if (request.method === "POST" && request.url === "/v1/runtime/stop" && this.stopRuntime) {
+      await readJson(request);
+      try {
+        await this.stopRuntime();
+        writeJson(response, 200, { ok: true });
+      } catch {
+        writeJson(response, 409, { error: "runtime_not_idle" });
+      }
       return;
     }
     const isTurn = request.url === "/v1/turn/start"

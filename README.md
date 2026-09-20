@@ -1,3 +1,94 @@
+# CLI background fork
+
+This fork adds a macOS terminal workflow to [miuuyy/codex-chatgpt-web](https://github.com/miuuyy/codex-chatgpt-web).
+`codex-chat` runs the existing browser host, Responses bridge, and tunnel in a login service.
+The React control panel, tray, and updater are not loaded. An Electron/Chromium process still runs
+in the background; an account sign-in window opens only with `codex-chat login`.
+
+## Install on macOS
+
+Requires Codex CLI and Bun **1.4.0**. Keep this checkout in a permanent directory.
+
+```sh
+git clone https://github.com/aicopilot-fr/codex-chatgpt-web.git
+cd codex-chatgpt-web
+./scripts/install-chat-cli.sh
+```
+
+The installer installs pinned dependencies, writes `~/.local/bin/codex-chat`, and enables a
+LaunchAgent. Put `~/.local/bin` on your PATH. Use `BUN=/absolute/path/to/bun` if your default Bun
+has a different version. The checkout remains the runtime: do not move or delete it while installed.
+
+**Migrating an existing launcher setup:** turn off its **Launch at login** setting, quit Codex Web GPT,
+then run the installer. It reuses that private browser session, configured tunnel, and runtime key.
+If the integration already targets a named profile, use the same name (`--profile NAME`, default `chat`).
+An integration targeting the main config is refused; the CLI never silently rewrites its ownership.
+
+```sh
+codex-chat                     # start service if needed, then interactive Codex
+codex-chat run exec 'your task'
+codex-chat status
+codex-chat doctor
+codex-chat stop                 # refuses to interrupt an active task
+codex-chat start
+codex-chat restart
+```
+
+`codex --profile chat` also works while the service runs. The default profile selects
+`chatgpt-web/high` and disables native subagents, web search, images, memories, and model-based
+approval review. Main `~/.codex/config.toml` is not changed by this installer. Codex itself may
+update its trusted-project list when you start a task.
+
+## First account setup
+
+```sh
+codex-chat login
+# Complete ChatGPT sign-in, then close the sign-in window.
+codex-chat setup --full --tunnel-id tunnel_YOUR_ID \
+  --runtime-key-file /private/path/runtime.key --acknowledge-unofficial
+codex-chat doctor
+```
+
+The existing CLI installs the route, private runtime key, pinned tunnel client, and MCP runtime.
+`codex-chat setup` reuses an existing mode, tunnel, key, and prior acknowledgement. The CLI creates
+only a separate named profile and a config-only setup home; it does not copy Codex credentials or
+session history. Startup does not reinstall or change the route.
+
+For a new account, OpenAI account-level steps still require creating a tunnel and a restricted
+**Tunnels Read + Use** key, enabling Developer mode, and connecting **Codex Native2** to the tunnel
+in the same ChatGPT workspace. Existing account setup needs none of these steps again. Keys stay
+in private local files. Do not paste them into commands, issue reports, or git.
+
+Automatic browser interaction is required. Zero Risk/manual mode still uses the original launcher.
+Native model names and native passthrough services can use Work limits; this fork does not change
+OpenAI quota accounting. Only the `chatgpt-web/*` model route runs through the ChatGPT website.
+
+## Stop or return to the launcher
+
+```sh
+codex-chat uninstall            # remove only the login service; preserve account/profile/data
+~/.local/bin/codex-chat-setup    # existing launcher shortcut, if you created one
+```
+
+Alternatively reopen your original launcher with the same `CODEX_HOME` from
+`~/.codex-chatgpt-web/cli.json`. Do not run both browser owners at once. For login recovery use
+`codex-chat login`; passkey-specific recovery can still use the original launcher after stopping
+the service. Local logs: `~/.codex-chatgpt-web/logs/background.stderr.log` and
+`~/Library/Application Support/Codex Web GPT/logs/background.jsonl`.
+
+## Verification
+
+```sh
+bun run typecheck
+bun test tests/chat-cli.test.ts tests/codex-integration.test.ts tests/service-lifecycle.test.ts
+node --test launcher/tests/background.test.cjs
+```
+
+The CLI uses the existing runtime supervisor, browser isolation, private control channel, and
+atomic drain protocol. Existing upstream UI remains available as a recovery tool.
+
+---
+
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="Switch to web models. Stay in Codex. Your ChatGPT plan. Your workflow. Maximum capabilities.">
 </p>

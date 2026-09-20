@@ -530,3 +530,27 @@ test("browser control server rejects malformed retained-conversation contracts",
     await server.close();
   }
 });
+
+test("background stop requires owner auth and a completed idle shutdown", async () => {
+  let calls = 0;
+  let idle = false;
+  const server = await new BrowserControlServer({
+    logger: { info() {}, warn() {}, error() {} },
+    getBrowserHost: () => null, getPreferences: () => ({}),
+    stopRuntime: async () => { calls++; if (!idle) throw new Error("active task or missing health evidence"); },
+  }).start();
+  const { endpoint, token } = server.descriptor();
+  const send = (authorization = `Bearer ${token}`) => fetch(`${endpoint}/v1/runtime/stop`, {
+    method: "POST", headers: { authorization }, body: "{}",
+  });
+  try {
+    assert.equal((await send("Bearer wrong")).status, 401);
+    assert.equal(calls, 0);
+    assert.equal((await send()).status, 409);
+    idle = true;
+    const response = await send();
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true });
+    assert.equal(calls, 2);
+  } finally { await server.close(); }
+});
